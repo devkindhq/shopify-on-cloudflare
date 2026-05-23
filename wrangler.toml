@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 
 # Set your Cloudflare account ID:
 #   wrangler whoami    # to find it
-account_id = "<replace-me-account-id>"
+account_id = "d10ba4c560d604156b4f8377da2229d6"
 
 # Serve built frontend assets (Vite output)
 [assets]
@@ -72,5 +72,4 @@ head_sampling_rate = 1
 [observability.logs]
 enabled = true
 head_sampling_rate = 1
-persist = true
 invocation_logs = true

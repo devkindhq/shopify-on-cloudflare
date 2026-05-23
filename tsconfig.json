@@ -20,7 +20,7 @@
     "src/**/*.tsx",
     "web/**/*.ts",
     "web/**/*.tsx",
-    "vite.config.ts"
+    "vite.config.mts"
   ],
   "exclude": ["node_modules"]
 }
