@@ -26,14 +26,14 @@ binding = "ASSETS"
 [[d1_databases]]
 binding          = "DB"
 database_name    = "cloudflare-shopify-starter-db"
-database_id      = "<replace-me-d1-id>"
+database_id      = "4cb7752a-7da0-4855-b64f-d0df75153a8c"
 migrations_dir   = "drizzle/migrations"
 
 # ─── KV (sessions) ──────────────────────────────────────────────────────────
 # Create with: wrangler kv:namespace create SESSION_KV
 [[kv_namespaces]]
 binding = "SESSION_KV"
-id      = "<replace-me-kv-id>"
+id      = "45e13cc0b2e74a04b3c0e136f3cd4bba"
 
 # ─── R2 (file storage) ──────────────────────────────────────────────────────
 # Create with: wrangler r2 bucket create cloudflare-shopify-starter-files
