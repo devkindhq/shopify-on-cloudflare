@@ -33,22 +33,24 @@ export default function Home() {
         <Layout.Section>
           <Card>
             <VerticalStack gap="4">
-              <Text as="h2" variant="headingMd">Example protected API call</Text>
-              {isLoading && <Spinner accessibilityLabel="Loading" size="small" />}
+              <Text as="h2" variant="headingMd">
+                Example protected API call 1
+              </Text>
+              {isLoading && (
+                <Spinner accessibilityLabel="Loading" size="small" />
+              )}
               {error && (
                 <Banner status="critical">
-                  {error instanceof Error ? error.message : 'Failed to fetch /api/example'}
+                  {error instanceof Error
+                    ? error.message
+                    : 'Failed to fetch /api/example'}
                 </Banner>
               )}
               {data && (
                 <Text as="p">
-                  shopId:
-                  {' '}
-                  <code>{data.shopId}</code>
+                  shopId: <code>{data.shopId}</code>
                   <br />
-                  server time:
-                  {' '}
-                  <code>{data.now}</code>
+                  server time: <code>{data.now}</code>
                 </Text>
               )}
             </VerticalStack>

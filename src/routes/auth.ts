@@ -17,17 +17,41 @@ authRoutes.get('/shopify/install', async (c) => {
     return c.json({ error: 'Missing shop parameter' }, 400);
   }
 
-  // If loaded inside the Shopify admin iframe (host param present), do NOT call
-  // auth.begin() here — the state cookie would be set in a third-party (cross-site)
-  // context and get blocked by modern browsers (Chrome, Safari ITP).
+  // Always check install state first — iframe escape is only needed when we
+  // actually need to start a fresh OAuth flow. For an existing install we'd
+  // otherwise loop: escape → top-level redirect to / → Shopify admin re-loads
+  // the iframe at the configured App URL (/shopify/install) → escape again.
+  const db = createDb(c.env.DB);
+  const existing = await db
+    .select({ id: shopifyShop.id })
+    .from(shopifyShop)
+    .where(and(eq(shopifyShop.myshopifyDomain, shop), eq(shopifyShop.status, 'installed')))
+    .get();
+
+  console.log(`[install] existing record=${!!existing}`);
+  if (existing) {
+    // Already installed — go straight to the SPA. Preserve host+embedded so
+    // App Bridge can initialize inside the admin iframe.
+    const target = host
+      ? `/?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1`
+      : `/?shop=${encodeURIComponent(shop)}`;
+    console.log(`[install] already installed, redirecting to ${target}`);
+    return c.redirect(target);
+  }
+
+  // Not installed.
   //
-  // window.top.location.href is blocked by browsers for cross-origin frames, so we
-  // must use the Shopify App Bridge Redirect action (postMessage to the admin shell)
-  // to break out of the iframe and trigger a top-level navigation to the install URL
-  // without the host param, where cookies are set in a first-party context.
+  // If we're inside the Shopify admin iframe (host param present), we cannot
+  // call auth.begin() here — the state cookie would be set in a third-party
+  // (cross-site) context and get blocked by modern browsers (Chrome, Safari ITP).
+  //
+  // window.top.location.href is blocked by browsers for cross-origin frames, so
+  // we use App Bridge 4 to break out of the iframe and trigger a top-level
+  // navigation to the install URL without the host param, where cookies are set
+  // in a first-party context.
   if (host) {
     const topLevelInstall = `https://${c.env.HOST}/shopify/install?shop=${encodeURIComponent(shop)}`;
-    console.log(`[install] iframe context — using App Bridge to escape iframe to: ${topLevelInstall}`);
+    console.log(`[install] iframe context, not installed — escaping iframe to: ${topLevelInstall}`);
     // App Bridge 4: loading the CDN script with data-api-key auto-initializes
     // the postMessage bridge to the admin shell. `open(url, '_top')` is then
     // intercepted and routed through the bridge for a top-level navigation
@@ -46,20 +70,6 @@ authRoutes.get('/shopify/install', async (c) => {
 <body></body>
 </html>`;
     return new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } });
-  }
-
-  // Top-level request — check if shop is already installed.
-  const db = createDb(c.env.DB);
-  const existing = await db
-    .select({ id: shopifyShop.id })
-    .from(shopifyShop)
-    .where(and(eq(shopifyShop.myshopifyDomain, shop), eq(shopifyShop.status, 'installed')))
-    .get();
-
-  console.log(`[install] existing record=${!!existing}`);
-  if (existing) {
-    console.log(`[install] already installed, redirecting to /?shop=${shop}`);
-    return c.redirect(`/?shop=${shop}`);
   }
 
   // Top-level, not installed — begin OAuth.
