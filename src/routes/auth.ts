@@ -28,20 +28,18 @@ authRoutes.get('/shopify/install', async (c) => {
   if (host) {
     const topLevelInstall = `https://${c.env.HOST}/shopify/install?shop=${encodeURIComponent(shop)}`;
     console.log(`[install] iframe context — using App Bridge to escape iframe to: ${topLevelInstall}`);
+    // App Bridge 4: loading the CDN script with data-api-key auto-initializes
+    // the postMessage bridge to the admin shell. `open(url, '_top')` is then
+    // intercepted and routed through the bridge for a top-level navigation
+    // that escapes the iframe (window.top.location.href is blocked cross-origin).
     const html = `<!DOCTYPE html>
 <html>
 <head>
-  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key=${JSON.stringify(c.env.SHOPIFY_CLIENT_ID)}></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      var AppBridge = window['app-bridge'];
-      var createApp = AppBridge.default;
-      var Redirect = AppBridge.actions.Redirect;
-      var app = createApp({
-        apiKey: ${JSON.stringify(c.env.SHOPIFY_CLIENT_ID)},
-        host: ${JSON.stringify(host)},
-      });
-      Redirect.create(app).dispatch(Redirect.Action.REMOTE, ${JSON.stringify(topLevelInstall)});
+      open(${JSON.stringify(topLevelInstall)}, '_top');
     });
   </script>
 </head>

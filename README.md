@@ -58,7 +58,7 @@ In the Shopify Partner dashboard, create an app and copy its client ID and secre
 ```bash
 npx wrangler secret put SHOPIFY_CLIENT_ID
 npx wrangler secret put SHOPIFY_API_SECRET
-npx wrangler secret put HOST           # e.g. https://cloudflare-shopify-starter.<you>.workers.dev
+npx wrangler secret put HOST           # bare hostname, no protocol, e.g. cloudflare-shopify-starter.<you>.workers.dev
 ```
 
 Copy `.env.example` to `.env` and fill in `VITE_SHOPIFY_CLIENT_ID` (the public client ID).

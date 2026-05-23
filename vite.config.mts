@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-dotenv.config({ path: resolve(__dirname, '.env.local') });
+dotenv.config({ path: resolve(__dirname, '.env') });
 
 export default defineConfig({
   plugins: [react()],

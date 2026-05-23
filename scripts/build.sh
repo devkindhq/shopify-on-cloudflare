@@ -3,13 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-ENV_FILE="${PROJECT_ROOT}/.env.local"
+ENV_FILE="${PROJECT_ROOT}/.env"
 
 echo "=== Cloudflare Shopify Starter — Frontend Build ==="
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo ""
-  echo "ERROR: .env.local not found at ${ENV_FILE}"
+  echo "ERROR: .env not found at ${ENV_FILE}"
   echo ""
   echo "Create it from .env.example and fill in the real values:"
   echo "  cp ${PROJECT_ROOT}/.env.example ${ENV_FILE}"
