@@ -7,6 +7,8 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
+    "dev:vite": "vite",
+    "dev:tunnel": "cloudflared tunnel --url http://localhost:5173",
     "d1:migrate": "wrangler d1 migrations apply cloudflare-shopify-starter-db --remote",
     "d1:migrate:local": "wrangler d1 migrations apply cloudflare-shopify-starter-db --local",
     "d1:generate": "drizzle-kit generate",
