@@ -5,8 +5,8 @@ import { getCurrentShopId } from './shopAuth';
 // Routes under /api/* that are intentionally public (no shop auth required).
 // Add a path here ONLY with explicit justification — all other /api/* routes
 // are protected automatically.
-const PUBLIC_API_PATHS = new Set([
-  '/api/contact-us',
+const PUBLIC_API_PATHS = new Set<string>([
+  // No public routes by default. Add entries here with a comment explaining why.
 ]);
 
 export const requireShop: MiddlewareHandler<AppEnv> = async (c, next) => {

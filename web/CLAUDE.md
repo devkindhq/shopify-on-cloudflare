@@ -1,14 +1,14 @@
 # web/ — Frontend (React + Vite + Polaris)
 
-Context for working in this directory. Vite builds a SPA into `dist/`, which is served by the Worker via the `ASSETS` binding (configured in `wrangler.toml`).
+Context for working in this directory. Vite (with the Cloudflare plugin) builds the SPA into `dist/client/`, which is served by the Worker via the `ASSETS` binding (configured in `wrangler.jsonc`). A single `npm run dev` runs the Worker and the frontend together on one port.
 
 ---
 
 ## Commands
 
 ```bash
-npx vite                # Dev server (proxy to Worker on :8787 via vite.config.ts if needed)
-npm run vite:build      # Production build → dist/
+npm run dev             # Whole app (Vite + Worker) on http://localhost:5173
+npm run build           # Production build → dist/client/ (+ Worker bundle)
 npm run lint            # ESLint on web/
 ```
 

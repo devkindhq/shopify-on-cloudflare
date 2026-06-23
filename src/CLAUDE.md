@@ -7,12 +7,13 @@ Context for working in this directory. The Worker is a single Hono application e
 ## Commands
 
 ```bash
-npx wrangler dev                                    # Worker on http://localhost:8787
+npm run dev                                         # Whole app (Vite + Worker) on http://localhost:5173
 npm test                                            # Vitest
+npm run test:e2e                                    # Playwright e2e smoke tests
 npm run d1:generate                                 # Regenerate migration from schema changes
 npm run d1:migrate                                  # Apply migrations to D1 (remote)
 npm run d1:migrate:local                            # Apply migrations to D1 (local)
-npm run vite:build && npm run deploy                # Build frontend, deploy Worker
+npm run deploy                                      # Build frontend + Worker, then deploy
 ```
 
 ### Secrets
@@ -27,7 +28,7 @@ npx wrangler secret put HOST
 
 ## Worker Entry (`src/index.ts`)
 
-Single `fetch` export — all Hono routes. To add Queues, Durable Objects, or cron triggers, uncomment the matching block in `wrangler.toml` and add the corresponding export to `src/index.ts` (`queue`, `scheduled`).
+Single `fetch` export — all Hono routes. To add Queues, Durable Objects, or cron triggers, uncomment the matching block in `wrangler.jsonc` and add the corresponding export to `src/index.ts` (`queue`, `scheduled`).
 
 ---
 

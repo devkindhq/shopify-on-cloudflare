@@ -1,0 +1,79 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cloudflare-shopify-starter-template",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+
+  // Set your Cloudflare account ID (run `wrangler whoami` to find it).
+  "account_id": "YOUR_ACCOUNT_ID",
+
+  // Deployed environment marker. Local dev overrides this to "development" via
+  // .dev.vars, which enables the x-shop-domain auth fallback (dev-only).
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+
+  // Serve built frontend assets. The Cloudflare Vite plugin builds the client
+  // into ./dist/client and the Worker alongside it.
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+
+  // D1 — create with: wrangler d1 create cloudflare-shopify-starter-db
+  // then paste the returned database_id below.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cloudflare-shopify-starter-db",
+      "database_id": "YOUR_DATABASE_ID",
+      "migrations_dir": "drizzle/migrations"
+    }
+  ],
+
+  // KV (Shopify sessions) — create with: wrangler kv namespace create SESSION_KV
+  "kv_namespaces": [
+    {
+      "binding": "SESSION_KV",
+      "id": "YOUR_KV_NAMESPACE_ID"
+    }
+  ],
+
+  // R2 (file storage) — create with: wrangler r2 bucket create cloudflare-shopify-starter-files
+  "r2_buckets": [
+    {
+      "binding": "R2",
+      "bucket_name": "cloudflare-shopify-starter-files"
+    }
+  ],
+
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true
+    }
+  }
+
+  // ─── OPTIONAL add-ons ────────────────────────────────────────────────────
+  // Queues (background processing) — wrangler queues create example-queue
+  // "queues": {
+  //   "producers": [{ "binding": "EXAMPLE_QUEUE", "queue": "example-queue" }],
+  //   "consumers": [{ "queue": "example-queue", "max_batch_size": 10 }]
+  // },
+  //
+  // Durable Objects (rate limiting, coordination)
+  // "durable_objects": {
+  //   "bindings": [{ "name": "RATE_LIMITER", "class_name": "RateLimiter" }]
+  // },
+  // "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateLimiter"] }],
+  //
+  // Cron triggers
+  // "triggers": { "crons": ["0 * * * *"] }
+}

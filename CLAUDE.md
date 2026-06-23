@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## Project Overview
 
-**cloudflare-shopify-starter** — Shopify embedded app starter on Cloudflare Workers + Hono + D1 + KV + R2 + React + Polaris. Extracted from a production Cloudflare migration; ships with session-token auth, KV-backed Shopify session storage, Drizzle ORM, and a minimal one-page React + Polaris frontend.
+**cloudflare-shopify-starter** — Shopify embedded app starter on Cloudflare Workers + Hono + D1 + KV + R2 + React + Polaris. Built on production-tested patterns; ships with session-token auth, KV-backed Shopify session storage, Drizzle ORM, and a minimal one-page React + Polaris frontend.
 
-See `README.md` for setup. See `wrangler.toml` for which Cloudflare bindings are wired in (D1, KV, R2) and which are commented out as opt-in examples (Queues, Durable Objects, Cron).
+See `README.md` for setup. See `wrangler.jsonc` for which Cloudflare bindings are wired in (D1, KV, R2) and which are commented out as opt-in examples (Queues, Durable Objects, Cron).
 
 ---
 

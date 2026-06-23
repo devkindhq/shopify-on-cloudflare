@@ -10,9 +10,6 @@ export const createShopify = (env: Env) =>
     scopes: [
       'read_products',
       'read_orders',
-      'read_audit_events',
-      'read_customer_events',
-      'read_marketing_events',
     ],
     hostName: env.HOST,
     apiVersion: ApiVersion.April26,

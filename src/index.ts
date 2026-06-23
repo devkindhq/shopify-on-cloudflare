@@ -29,6 +29,9 @@ app.get('/health', (c) => c.json({ status: 'ok', app: 'cloudflare-shopify-starte
 // Must be last so all Worker routes (auth, API, webhooks) take priority.
 app.get('*', (c) => c.env.ASSETS.fetch(c.req.raw));
 
+// Exported for integration tests (see src/api.integration.test.ts).
+export { app };
+
 export default {
   fetch: app.fetch,
 };
