@@ -5,7 +5,7 @@
 [![Built with Hono](https://img.shields.io/badge/Hono-v4-E36002?logo=hono&logoColor=white)](https://hono.dev)
 [![Shopify](https://img.shields.io/badge/Shopify-Embedded_App-96BF48?logo=shopify&logoColor=white)](https://shopify.dev)
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/devkindhq/shopify-on-cloudflare)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/devkindhq/shopify-on-cloudflare)
 
 **Keywords:** Shopify embedded app, Cloudflare Workers, Hono, Drizzle ORM, D1, KV, R2, React Polaris, session token auth, boilerplate, template, starter
 
@@ -76,12 +76,9 @@ wrangler kv:namespace create SESSION_KV
 
 # R2 bucket for file storage
 wrangler r2 bucket create cloudflare-shopify-starter-files
-
-# Account id (also goes into wrangler.jsonc)
-wrangler whoami
 ```
 
-Open `wrangler.jsonc` and replace every `YOUR_*` placeholder with the values above.
+Open `wrangler.jsonc` and replace the `YOUR_*` placeholders (`database_id`, KV `id`) with the values above. (No `account_id` needed — Wrangler uses your logged-in account.)
 
 ### 3. Set Shopify secrets
 

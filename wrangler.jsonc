@@ -6,9 +6,6 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
 
-  // Set your Cloudflare account ID (run `wrangler whoami` to find it).
-  "account_id": "YOUR_ACCOUNT_ID",
-
   // Deployed environment marker. Local dev overrides this to "development" via
   // .dev.vars, which enables the x-shop-domain auth fallback (dev-only).
   "vars": {
