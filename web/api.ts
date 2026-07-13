@@ -1,17 +1,22 @@
 /**
  * Minimal API helper for the starter.
  *
- * Usage:
+ * Usage (App Bridge 4 — do NOT use the v3 `authenticatedFetch` utility, it
+ * calls app.subscribe() which doesn't exist on the v4 useAppBridge() object):
  *   import { useAppBridge } from '@shopify/app-bridge-react';
- *   import { authenticatedFetch } from '@shopify/app-bridge/utilities';
- *   import { apiFetch } from './api';
+ *   import { apiFetch, type AuthenticatedFetch } from './api';
  *
- *   const app = useAppBridge();
- *   const fetcher = authenticatedFetch(app);
+ *   const shopify = useAppBridge();
+ *   const fetcher: AuthenticatedFetch = async (uri, options) => {
+ *     const token = await shopify.idToken();
+ *     return fetch(uri, {
+ *       ...options,
+ *       headers: { ...(options?.headers ?? {}), Authorization: `Bearer ${token}` },
+ *     });
+ *   };
  *   const data = await apiFetch<ExampleResponse>(fetcher, '/api/example');
  *
- * `authenticatedFetch` attaches the Shopify session token (JWT) to every
- * request, which the Worker's `requireShop` middleware verifies.
+ * The session token (JWT) is verified by the Worker's `requireShop` middleware.
  */
 export type AuthenticatedFetch = (
   uri: string,

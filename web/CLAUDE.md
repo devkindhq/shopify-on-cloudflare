@@ -19,7 +19,7 @@ npm run lint            # ESLint on web/
 - `main.tsx` — entry, mounts `<App />` with `AppProvider` (Polaris), `QueryClientProvider`, `BrowserRouter`
 - `App.tsx` — `NavMenu` + routing shell wrapped in the Bugsnag error boundary
 - `Pages/Home.tsx` — example page; replace/extend as you build your app
-- `api.ts` — `apiFetch<T>` helper; pass it an `authenticatedFetch` created via `useAppBridge()` + `@shopify/app-bridge/utilities`
+- `api.ts` — `apiFetch<T>` helper; pass it an `AuthenticatedFetch` that fetches the session token via `useAppBridge().idToken()` and attaches it as a Bearer header (App Bridge 4 — the v3 `@shopify/app-bridge/utilities` `authenticatedFetch` is incompatible)
 - `bugsnag.tsx` — env-driven, no-op if `VITE_BUGSNAG_API_KEY` is unset
 
 App Bridge is initialized via the `<script>` tag in `index.html` (`data-api-key="%VITE_SHOPIFY_CLIENT_ID%"`) — no React Provider needed.

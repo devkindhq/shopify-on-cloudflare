@@ -12,7 +12,7 @@ const EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 /**
  * Extracts the current shop's D1 row ID from the request.
  * Priority: Authorization JWT (signature-verified) → shop query param
- *           → x-shop-domain (local dev only).
+ *           / x-shop-domain (local dev only).
  * Returns null if not found or shop is not installed.
  */
 export async function getCurrentShopId(
@@ -65,14 +65,14 @@ export async function getCurrentShopId(
     }
   }
 
-  // 2. Explicit shop param / local-dev header only
-  // x-shopify-shop-domain is NOT trusted here — webhooks verify HMAC independently
-  // and never reach this code path. Trusting it here would allow any caller who
-  // knows a merchant's .myshopify.com domain to bypass auth on all /api/* routes.
+  // 2. Local-dev fallbacks ONLY — never trusted in production.
+  // An unverified shop identifier (query param or header) in production would
+  // let any caller who knows a merchant's .myshopify.com domain bypass auth on
+  // all /api/* routes. Webhooks verify HMAC independently and never reach here.
   const isLocalDev = c.env.ENVIRONMENT === 'development';
-  const shopDomain =
-    c.req.query('shop') ??
-    (isLocalDev ? c.req.header('x-shop-domain') : null);
+  const shopDomain = isLocalDev
+    ? (c.req.query('shop') ?? c.req.header('x-shop-domain'))
+    : null;
 
   if (!shopDomain) return null;
 
