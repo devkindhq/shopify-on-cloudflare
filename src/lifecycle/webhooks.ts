@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { Env } from '../types/env';
+import { timingSafeEqual } from '../lib/timingSafeEqual';
 
 // Starter registers only APP_UNINSTALLED. To register more topics, add to this
 // list and to the dispatch switch in the webhook handler below. Common topics:
@@ -66,15 +67,7 @@ export async function handleWebhook(c: Context<{ Bindings: Env }>): Promise<Resp
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
   const computedHmac = btoa(String.fromCharCode(...new Uint8Array(signature)));
 
-  // Timing-safe comparison (Workers has no crypto.timingSafeEqual): check
-  // lengths, then XOR-fold over every byte so the comparison always walks the
-  // full string and never early-exits on the first differing character.
-  let diff = computedHmac.length ^ hmacHeader.length;
-  for (let i = 0; i < computedHmac.length && i < hmacHeader.length; i++) {
-    diff |= computedHmac.charCodeAt(i) ^ hmacHeader.charCodeAt(i);
-  }
-
-  if (diff !== 0) {
+  if (!timingSafeEqual(computedHmac, hmacHeader)) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
