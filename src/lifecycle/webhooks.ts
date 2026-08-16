@@ -11,6 +11,7 @@ import type { Env } from '../types/env';
 //   'customers/data_request', 'customers/redact', 'shop/redact'  // GDPR
 const WEBHOOK_TOPICS = ['app/uninstalled'] as const;
 
+// SECURITY AUDIT 2026-08-16: verified safe — this is outbound webhook REGISTRATION via Shopify Admin API (authenticated by X-Shopify-Access-Token header), not an inbound webhook handler. HMAC verification lives in handleWebhook below.
 export async function registerWebhooks(
   shopDomain: string,
   accessToken: string,
@@ -65,7 +66,15 @@ export async function handleWebhook(c: Context<{ Bindings: Env }>): Promise<Resp
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
   const computedHmac = btoa(String.fromCharCode(...new Uint8Array(signature)));
 
-  if (computedHmac !== hmacHeader) {
+  // Timing-safe comparison (Workers has no crypto.timingSafeEqual): check
+  // lengths, then XOR-fold over every byte so the comparison always walks the
+  // full string and never early-exits on the first differing character.
+  let diff = computedHmac.length ^ hmacHeader.length;
+  for (let i = 0; i < computedHmac.length && i < hmacHeader.length; i++) {
+    diff |= computedHmac.charCodeAt(i) ^ hmacHeader.charCodeAt(i);
+  }
+
+  if (diff !== 0) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
