@@ -223,7 +223,7 @@ For significant changes, open an issue first to discuss the approach.
 
 Need a custom Shopify app or storefront built on Cloudflare? See [Devkind's Shopify development services](https://devkind.com.au/services/shopify).
 
-Built by [Devkind](https://devkind.com.au). Maintained by Kazim Ali — ali@devkind.com.au
+Built by [Devkind](https://devkind.com.au). Maintained by Kazim Ali (ali@devkind.com.au)
 
 ---
 
