@@ -27,7 +27,7 @@ app.route('/', exampleRoutes);
 app.route('/', previewRoutes);
 
 // Health check
-app.get('/health', (c) => c.json({ status: 'ok', app: 'cloudflare-shopify-starter' }));
+app.get('/health', (c) => c.json({ status: 'ok', app: 'shopify-on-cloudflare' }));
 
 // Catch-all: serve SPA and static assets via Cloudflare Assets binding.
 // Must be last so all Worker routes (auth, API, webhooks) take priority.

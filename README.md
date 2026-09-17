@@ -1,4 +1,4 @@
-# cloudflare-shopify-starter
+# Shopify on Cloudflare
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com)
@@ -71,7 +71,7 @@ npm install
 
 ```bash
 # Database
-wrangler d1 create cloudflare-shopify-starter-db
+wrangler d1 create shopify-on-cloudflare-db
 # → copy the returned database_id into wrangler.jsonc
 
 # KV namespace for Shopify sessions
@@ -79,7 +79,7 @@ wrangler kv:namespace create SESSION_KV
 # → copy the returned id into wrangler.jsonc
 
 # R2 bucket for file storage
-wrangler r2 bucket create cloudflare-shopify-starter-files
+wrangler r2 bucket create shopify-on-cloudflare-files
 ```
 
 Open `wrangler.jsonc` and replace the `YOUR_*` placeholders (`database_id`, KV `id`) with the values above. (No `account_id` needed — Wrangler uses your logged-in account.)
@@ -91,7 +91,7 @@ In the Shopify Partner dashboard, create an app and copy its client ID and secre
 ```bash
 npx wrangler secret put SHOPIFY_CLIENT_ID
 npx wrangler secret put SHOPIFY_API_SECRET
-npx wrangler secret put HOST           # bare hostname, no protocol, e.g. cloudflare-shopify-starter.<you>.workers.dev
+npx wrangler secret put HOST           # bare hostname, no protocol, e.g. shopify-on-cloudflare.<you>.workers.dev
 ```
 
 Copy `.env.example` to `.env` and fill in `VITE_SHOPIFY_CLIENT_ID` (the public client ID).
@@ -150,7 +150,7 @@ Everything is served at http://localhost:5173, with the Worker running in the re
 Seed a test shop and hit the example endpoint:
 
 ```bash
-wrangler d1 execute cloudflare-shopify-starter-db --local --command "
+wrangler d1 execute shopify-on-cloudflare-db --local --command "
   INSERT OR IGNORE INTO shopify_shop (id, myshopify_domain, domain, name, status, install_date)
   VALUES ('test-shop-id', 'mystore.myshopify.com', 'mystore.myshopify.com', 'Test Store', 'installed', datetime('now'));
 "
@@ -216,6 +216,14 @@ Contributions, bug reports, and feature requests are welcome.
 4. Open a pull request — describe what you changed and why.
 
 For significant changes, open an issue first to discuss the approach.
+
+---
+
+## Learn more
+
+Need a custom Shopify app or storefront built on Cloudflare? See [Devkind's Shopify development services](https://devkind.com.au/services/shopify).
+
+Built by [Devkind](https://devkind.com.au). Maintained by the Devkind Engineering team (hello@devkind.com.au).
 
 ---
 

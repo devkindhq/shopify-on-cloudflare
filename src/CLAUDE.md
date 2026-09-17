@@ -52,10 +52,10 @@ To make a route public, add it to `PUBLIC_API_PATHS` in `requireShop.ts` with a 
 
 ```bash
 # Apply migrations
-wrangler d1 migrations apply cloudflare-shopify-starter-db --local
+wrangler d1 migrations apply shopify-on-cloudflare-db --local
 
 # Insert a test shop
-wrangler d1 execute cloudflare-shopify-starter-db --local --command "
+wrangler d1 execute shopify-on-cloudflare-db --local --command "
   INSERT OR IGNORE INTO shopify_shop (id, myshopify_domain, domain, name, status, install_date)
   VALUES ('test-shop-id', 'mystore.myshopify.com', 'mystore.myshopify.com', 'Test Store', 'installed', datetime('now'));
 "
