@@ -1,5 +1,5 @@
 {
-  "name": "cloudflare-shopify-starter-template",
+  "name": "shopify-on-cloudflare",
   "version": "0.1.0",
   "private": true,
   "description": "Shopify embedded app starter on Cloudflare Workers — Hono, D1, KV, R2, React, Polaris, Drizzle ORM, session-token auth",
@@ -44,13 +44,13 @@
     ],
     "bindings": {
       "DB": {
-        "description": "D1 database — run `wrangler d1 create cloudflare-shopify-starter-db` and paste the returned `database_id` into `wrangler.jsonc`."
+        "description": "D1 database — run `wrangler d1 create shopify-on-cloudflare-db` and paste the returned `database_id` into `wrangler.jsonc`."
       },
       "SESSION_KV": {
         "description": "KV namespace for Shopify session storage — run `wrangler kv:namespace create SESSION_KV` and paste the returned `id` into `wrangler.jsonc`."
       },
       "R2": {
-        "description": "R2 bucket for file storage — run `wrangler r2 bucket create cloudflare-shopify-starter-files`."
+        "description": "R2 bucket for file storage — run `wrangler r2 bucket create shopify-on-cloudflare-files`."
       }
     }
   },
@@ -60,8 +60,8 @@
     "build": "vite build",
     "preview": "npm run build && vite preview",
     "deploy": "npm run build && wrangler d1 migrations apply DB --remote && wrangler deploy",
-    "d1:migrate": "wrangler d1 migrations apply cloudflare-shopify-starter-db --remote",
-    "d1:migrate:local": "wrangler d1 migrations apply cloudflare-shopify-starter-db --local",
+    "d1:migrate": "wrangler d1 migrations apply shopify-on-cloudflare-db --remote",
+    "d1:migrate:local": "wrangler d1 migrations apply shopify-on-cloudflare-db --local",
     "d1:generate": "drizzle-kit generate",
     "lint": "eslint web --ext .ts,.tsx --fix",
     "lint:ci": "eslint web --ext .ts,.tsx",
@@ -71,7 +71,7 @@
     "test:e2e": "playwright test",
     "cf-typegen": "wrangler types",
     "check": "tsc --noEmit && vite build && wrangler deploy --dry-run",
-    "setup": "wrangler d1 migrations apply cloudflare-shopify-starter-db --local"
+    "setup": "wrangler d1 migrations apply shopify-on-cloudflare-db --local"
   },
   "dependencies": {
     "@bugsnag/js": "^8.9.0",
