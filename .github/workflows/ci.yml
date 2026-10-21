@@ -8,6 +8,11 @@ name: CI
 #   - any pull request targeting `main` or a `release/**` branch
 #   - any push that lands directly on a `release/**` branch
 #
+# Only what the diff needs: the `changes` job works out which areas the change touches,
+# and each job below runs only for those (and, for lint and tests, only over the
+# changed files). A change to dependencies, tool config or a workflow runs everything.
+# A skipped job reports as passing.
+#
 # Trigger reference:
 # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
 on:
@@ -34,8 +39,74 @@ env:
   NODE_VERSION: '24'
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      all: ${{ steps.diff.outputs.all }}
+      base: ${{ steps.diff.outputs.base }}
+      web: ${{ steps.diff.outputs.web }}
+      ts: ${{ steps.diff.outputs.ts }}
+      build: ${{ steps.diff.outputs.build }}
+      lint_files: ${{ steps.diff.outputs.lint_files }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The whole history, so the base commit is there to diff against.
+          fetch-depth: 0
+
+      - name: List changed files
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          # A PR is compared with where it branched off its target; a push with the commit
+          # before it. A new branch has no "before" (all zeros), so everything runs.
+          if [ "$EVENT" = "pull_request" ]; then
+            BASE=$(git merge-base "$PR_BASE" HEAD)
+          elif [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+            BASE="$PUSH_BEFORE"
+          else
+            BASE=""
+          fi
+
+          ALL=false
+          if [ -z "$BASE" ]; then
+            ALL=true
+            CHANGED=""
+          else
+            CHANGED=$(git diff --name-only "$BASE" HEAD)
+          fi
+          echo "Changed files:"; echo "${CHANGED:-<none>}"
+
+          has() { echo "$CHANGED" | grep -Eq "$1"; }
+          flag() { if [ "$ALL" = true ] || has "$1"; then echo true; else echo false; fi; }
+
+          # Dependencies, tool config or a workflow can break anything: run it all.
+          if has '^(package\.json|package-lock\.json|tsconfig[^/]*\.json|vitest\.config\.ts|vite\.config\.mts|\.eslintrc[^/]*|wrangler\.jsonc|\.github/workflows/)'; then
+            ALL=true
+          fi
+
+          {
+            echo "all=$ALL"
+            echo "base=$BASE"
+            echo "web=$(flag '^web/')"
+            echo "ts=$(flag '\.(ts|tsx|json)$')"
+            echo "build=$(flag '^(web|src)/|^index\.html$')"
+            # Changed web TS files that still exist (a deleted file has nothing to lint).
+            LINT=$(echo "$CHANGED" | grep -E '^web/.*\.(ts|tsx)$' | while read -r f; do [ -f "$f" ] && printf '%s ' "$f"; done || true)
+            echo "lint_files=$LINT"
+          } >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
   lint:
     name: Lint
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.all == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -51,14 +122,30 @@ jobs:
         run: npm ci
 
       - name: Run ESLint
-        run: npm run lint:ci
+        env:
+          ALL: ${{ needs.changes.outputs.all }}
+          FILES: ${{ needs.changes.outputs.lint_files }}
+        run: |
+          if [ "$ALL" = "true" ]; then
+            npm run lint:ci
+          elif [ -n "$FILES" ]; then
+            # Same rules as lint:ci, on the changed web files only.
+            npx eslint --ext .ts,.tsx $FILES
+          else
+            echo "No changed web TypeScript to lint."
+          fi
 
   test:
     name: Test & Coverage
+    needs: changes
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.all == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # vitest --changed diffs against the base commit.
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -70,7 +157,17 @@ jobs:
         run: npm ci
 
       - name: Run tests with coverage
-        run: npm run test:coverage
+        env:
+          ALL: ${{ needs.changes.outputs.all }}
+          BASE: ${{ needs.changes.outputs.base }}
+        run: |
+          if [ "$ALL" = "true" ]; then
+            npm run test:coverage
+          else
+            # Only the test files that import, directly or not, a file changed since BASE.
+            # Coverage then covers just those tests.
+            npx vitest run --coverage --changed "$BASE" --passWithNoTests
+          fi
 
       - name: Upload coverage report
         if: always()
@@ -83,6 +180,8 @@ jobs:
 
   build:
     name: Build
+    needs: changes
+    if: needs.changes.outputs.build == 'true' || needs.changes.outputs.all == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

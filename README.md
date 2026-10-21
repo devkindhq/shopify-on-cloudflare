@@ -180,6 +180,25 @@ npm run deploy
 
 `npm run deploy` builds the frontend and Worker together (`vite build`) and ships them with `wrangler deploy`.
 
+### CI/CD (GitHub Actions)
+
+- **`ci.yml`** runs lint, tests with coverage, and build on every pull request into `main`. It only runs the jobs the change touches, and lint and tests only over the changed files. A change to dependencies, tool config or a workflow runs everything.
+- **`deploy.yml`** deploys on every push to `main` once you turn it on. It migrates D1 and deploys the Worker. If `shopify.app.toml` is committed, it also releases the Shopify app version. When both change in one push they go out together: if the Shopify release fails, the Worker is rolled back. See the header of `deploy.yml` for the details.
+
+To turn on deploys:
+
+1. Replace the `YOUR_DATABASE_ID` / `YOUR_KV_NAMESPACE_ID` placeholders in `wrangler.jsonc` with your real IDs and commit them. They are identifiers, not secrets.
+2. Set the Worker's secrets once with `wrangler secret put` (see [step 3](#3-set-shopify-secrets)). The workflow never handles them.
+3. Create a GitHub environment named `production` (**Settings → Environments**) with:
+   - secrets `CLOUDFLARE_API_TOKEN` (the "Edit Cloudflare Workers" token template plus **D1: Edit**) and `CLOUDFLARE_ACCOUNT_ID`
+   - secret `SHOPIFY_APP_AUTOMATION_TOKEN` (Dev Dashboard → your app → Settings), only if you commit `shopify.app.toml`
+   - variable `VITE_SHOPIFY_CLIENT_ID` (your app's public client ID)
+4. Add the repository variable `DEPLOY_ENABLED` = `true` (**Settings → Secrets and variables → Actions → Variables**).
+
+You can also run a deploy by hand from **Actions → Deploy → Run workflow**.
+
+> If you created the Worker with the **Deploy to Cloudflare** button, disconnect its Git integration in the Cloudflare dashboard (**Workers → your Worker → Settings → Build**) before turning this on. Otherwise every push deploys twice.
+
 ---
 
 ## What's next

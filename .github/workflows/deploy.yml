@@ -1,0 +1,304 @@
+name: Deploy
+
+# Deploys the app: the Cloudflare Worker and/or the Shopify app (config +
+# extensions), depending on what the push changed.
+#
+#   main -> production    the Worker in wrangler.jsonc, shopify.app.toml
+#
+# Opt-in. A push to `main` deploys only once the repository variable
+# DEPLOY_ENABLED is `true`, so a fresh copy of this template doesn't fail on
+# its first commit. A manual run (Actions -> Deploy -> Run workflow) always runs.
+#
+# Only Cloudflare changed -> migrate D1, deploy the Worker.
+# Only Shopify changed    -> release a new app version.
+# Both changed            -> both or neither:
+#   1. build and check both; any failure stops here, nothing deployed
+#   2. upload the Shopify version WITHOUT releasing it (merchants don't see it)
+#   3. migrate D1 and deploy the Worker; on failure stop, the Shopify version
+#      stays unreleased
+#   4. release the Shopify version; on failure roll the Worker back to the
+#      version that was live before step 3
+#   The Worker goes first because new webhooks or URLs in the app config may
+#   point at routes that only exist once it is deployed.
+#
+# The Shopify side runs only when the app config is committed: shopify.app.toml,
+# or shopify.app.<name>.toml when the SHOPIFY_APP_CONFIG variable is <name>.
+#
+# D1 migrations cannot be rolled back. When a later step fails, the database
+# keeps the new schema under the old code, which is only safe while migrations
+# are additive (new tables/columns, never a drop or rename).
+#
+# The Worker must NOT also be connected to Git in Cloudflare (Workers Builds,
+# which the README's "Deploy to Cloudflare" button sets up): that would deploy
+# it on every push, outside this workflow's control.
+#
+# The Worker's own secrets (SHOPIFY_CLIENT_ID, SHOPIFY_API_SECRET, HOST) are set
+# once with `wrangler secret put` and persist across deploys; this workflow
+# never handles them.
+#
+# On the GitHub environment (Settings -> Environments -> production):
+#   Secrets
+#     CLOUDFLARE_API_TOKEN          "Edit Cloudflare Workers" template, plus D1: Edit
+#     CLOUDFLARE_ACCOUNT_ID
+#     SHOPIFY_APP_AUTOMATION_TOKEN  Dev Dashboard -> app -> Settings -> App Automation Token
+#   Variables
+#     VITE_SHOPIFY_CLIENT_ID        the app's client ID (public), baked into index.html
+# On the repository (Settings -> Secrets and variables -> Actions -> Variables):
+#     DEPLOY_ENABLED                `true` to deploy on every push to main
+#     SHOPIFY_APP_CONFIG            optional, see above
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: What to deploy
+        type: choice
+        default: both
+        options: [both, cloudflare, shopify]
+
+# Never two deploys at once, and never cancel one halfway: a cancelled run
+# could leave an uploaded-but-unreleased version or skip a rollback.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Node 22.15+ is required by @cloudflare/vite-plugin (uses module.registerHooks).
+  NODE_VERSION: '24'
+  # Pinned so a CLI release can't change a deploy without a commit here.
+  SHOPIFY_CLI_VERSION: '4.9.4'
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.ref_name }}
+    if: github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SHOPIFY_APP_AUTOMATION_TOKEN: ${{ secrets.SHOPIFY_APP_AUTOMATION_TOKEN }}
+      # Empty means the CLI's default, shopify.app.toml; every shopify command
+      # below passes --config only when it is set.
+      SHOPIFY_APP_CONFIG: ${{ vars.SHOPIFY_APP_CONFIG }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The whole history, so the previous push is there to diff against.
+          fetch-depth: 0
+
+      - name: Detect changes
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT: ${{ inputs.deploy }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          CONFIG_FILE="shopify.app${SHOPIFY_APP_CONFIG:+.$SHOPIFY_APP_CONFIG}.toml"
+          CF=false; SH=false
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            [ "$INPUT" != "shopify" ] && CF=true
+            [ "$INPUT" != "cloudflare" ] && SH=true
+            if [ "$INPUT" = "shopify" ] && [ ! -f "$CONFIG_FILE" ]; then
+              echo "::error::Asked to deploy Shopify, but $CONFIG_FILE is not committed"
+              exit 1
+            fi
+          elif [ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^0+$ ]] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            # New branch or rewritten history: nothing reliable to diff against.
+            CF=true; SH=true
+          else
+            CHANGED=$(git diff --name-only "$BEFORE" HEAD)
+            echo "Changed files:"; echo "${CHANGED:-<none>}"
+            has() { echo "$CHANGED" | grep -Eq "$1"; }
+            # Dependencies and this workflow can break either side.
+            if has '^(package\.json|package-lock\.json|\.github/workflows/deploy\.yml)$'; then CF=true; SH=true; fi
+            if has '^(src|web|drizzle)/|^(index\.html|wrangler\.jsonc|vite\.config\.mts|tsconfig[^/]*\.json)$'; then CF=true; fi
+            if has "^extensions/|^${CONFIG_FILE//./\\.}$"; then SH=true; fi
+          fi
+          # No committed app config: this repo deploys the Worker only.
+          if [ "$SH" = true ] && [ ! -f "$CONFIG_FILE" ]; then
+            echo "::notice::$CONFIG_FILE is not committed, so the Shopify app is not deployed"
+            SH=false
+          fi
+          {
+            echo "cloudflare=$CF"
+            echo "shopify=$SH"
+            [ "$CF" = true ] && [ "$SH" = true ] && echo "both=true" || echo "both=false"
+            [ -d extensions ] && echo "extensions=true" || echo "extensions=false"
+          } >> "$GITHUB_OUTPUT"
+          echo "cloudflare=$CF shopify=$SH"
+
+      # Fail before building anything if a needed secret or setting is missing.
+      - name: Check configuration
+        if: steps.changes.outputs.cloudflare == 'true' || steps.changes.outputs.shopify == 'true'
+        env:
+          CF: ${{ steps.changes.outputs.cloudflare }}
+          SH: ${{ steps.changes.outputs.shopify }}
+          VITE_SHOPIFY_CLIENT_ID: ${{ vars.VITE_SHOPIFY_CLIENT_ID }}
+        run: |
+          missing=""
+          if [ "$CF" = true ]; then
+            [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+            [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+            # Without it index.html ships an unsubstituted %VITE_SHOPIFY_CLIENT_ID%,
+            # App Bridge boots with the wrong api key and every /api/* call 401s.
+            [ -n "$VITE_SHOPIFY_CLIENT_ID" ] || missing="$missing VITE_SHOPIFY_CLIENT_ID(variable)"
+          fi
+          if [ "$SH" = true ]; then
+            [ -n "$SHOPIFY_APP_AUTOMATION_TOKEN" ] || missing="$missing SHOPIFY_APP_AUTOMATION_TOKEN"
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error::Missing on the 'production' environment:$missing"
+            exit 1
+          fi
+          # The template ships placeholder binding IDs; deploying them fails late
+          # and confusingly, so stop here instead.
+          if [ "$CF" = true ] && grep -Eq 'YOUR_(DATABASE|KV_NAMESPACE)_ID' wrangler.jsonc; then
+            echo "::error file=wrangler.jsonc::Replace the YOUR_DATABASE_ID / YOUR_KV_NAMESPACE_ID placeholders with your D1 and KV IDs"
+            exit 1
+          fi
+
+      - name: Setup Node
+        if: steps.changes.outputs.cloudflare == 'true' || steps.changes.outputs.shopify == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.changes.outputs.cloudflare == 'true' || steps.changes.outputs.shopify == 'true'
+        run: npm ci
+
+      # ── 1. Build and check everything; nothing is deployed yet ───────────────
+
+      - name: Build Worker
+        if: steps.changes.outputs.cloudflare == 'true'
+        env:
+          VITE_SHOPIFY_CLIENT_ID: ${{ vars.VITE_SHOPIFY_CLIENT_ID }}
+        run: npx vite build
+
+      # Bundles and validates the built config without uploading anything.
+      - name: Check Worker
+        if: steps.changes.outputs.cloudflare == 'true'
+        run: npx wrangler deploy --dry-run
+
+      - name: Install Shopify CLI
+        if: steps.changes.outputs.shopify == 'true'
+        run: npm install -g @shopify/cli@${{ env.SHOPIFY_CLI_VERSION }}
+
+      # Only when there are extensions to build. Rust Shopify Functions also need
+      # dtolnay/rust-toolchain with `targets: wasm32-unknown-unknown` before this.
+      - name: Build Shopify app
+        if: steps.changes.outputs.shopify == 'true' && steps.changes.outputs.extensions == 'true'
+        run: shopify app build ${SHOPIFY_APP_CONFIG:+--config "$SHOPIFY_APP_CONFIG"} --no-input
+
+      # ── 2. Shopify: upload (both) or upload + release (Shopify only) ─────────
+
+      - name: Deploy Shopify app
+        id: shopify_deploy
+        if: steps.changes.outputs.shopify == 'true'
+        env:
+          BOTH: ${{ steps.changes.outputs.both }}
+          # Unique per run attempt, so a re-run never collides with a name
+          # an earlier attempt already uploaded.
+          VERSION: production-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # --no-release and --allow-updates are mutually exclusive: with both
+          # sides changing, the version is released only after the Worker lands.
+          if [ "$BOTH" = true ]; then MODE="--no-release"; else MODE="--allow-updates"; fi
+          # Already built in step 1. Never --allow-deletes: removing an extension
+          # also removes its store data, so deletes stay a manual, local release.
+          shopify app deploy \
+            ${SHOPIFY_APP_CONFIG:+--config "$SHOPIFY_APP_CONFIG"} \
+            $MODE \
+            --no-build \
+            --no-input \
+            --version "$VERSION" \
+            --message "${{ github.ref_name }} ${{ github.sha }}" \
+            --source-control-url "$COMMIT_URL"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # ── 3. Cloudflare: migrate and deploy ────────────────────────────────────
+
+      # What to roll back to if the Shopify release fails after the Worker lands.
+      - name: Record live Worker version
+        id: previous
+        if: steps.changes.outputs.cloudflare == 'true'
+        run: |
+          set -uo pipefail
+          # A Worker's very first deploy has no live version: wrangler fails with
+          # code 10007 (not found), and only that leaves VERSION empty (Roll back
+          # Worker then fails loudly). Any other failure, a bad token above all,
+          # stops the deploy here, before migrations touch D1.
+          if STATUS=$(npx wrangler deployments status --json 2>/tmp/status.err); then
+            VERSION=$(echo "$STATUS" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); const v=(d.versions||[]).find(x=>x.percentage===100); process.stdout.write(v?v.version_id:"")')
+          elif grep -q "10007" /tmp/status.err; then
+            VERSION=""
+            echo "::warning::The Worker does not exist yet (first deploy); a failed Shopify release cannot roll it back"
+          else
+            cat /tmp/status.err
+            echo "::error::Could not read the live Worker version"
+            exit 1
+          fi
+          echo "Live version: ${VERSION:-<none>}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Against wrangler.jsonc explicitly: d1 commands do not follow the build's
+      # redirected config, which `wrangler deploy` below does use.
+      - name: Apply D1 migrations
+        if: steps.changes.outputs.cloudflare == 'true'
+        run: npx wrangler d1 migrations apply DB --remote -c wrangler.jsonc
+
+      - name: Deploy Worker
+        id: worker_deploy
+        if: steps.changes.outputs.cloudflare == 'true'
+        run: npx wrangler deploy
+
+      # ── 4. Both: release the uploaded Shopify version ────────────────────────
+
+      - name: Release Shopify version
+        id: shopify_release
+        if: steps.changes.outputs.both == 'true'
+        run: |
+          shopify app release \
+            ${SHOPIFY_APP_CONFIG:+--config "$SHOPIFY_APP_CONFIG"} \
+            --version "${{ steps.shopify_deploy.outputs.version }}" \
+            --allow-updates \
+            --no-input
+
+      - name: Roll back Worker
+        if: failure() && steps.shopify_release.outcome == 'failure' && steps.worker_deploy.outcome == 'success'
+        env:
+          PREVIOUS: ${{ steps.previous.outputs.version }}
+        run: |
+          if [ -z "$PREVIOUS" ]; then
+            echo "::error::Shopify release failed and the Worker has no earlier version to roll back to. The new Worker is live; fix forward or delete it."
+            exit 1
+          fi
+          echo "::error::Shopify release failed; rolling the Worker back to $PREVIOUS"
+          npx wrangler rollback "$PREVIOUS" \
+            --message "Shopify release failed in run ${{ github.run_id }}" --yes
+
+      - name: Summary
+        if: always()
+        env:
+          CF: ${{ steps.changes.outputs.cloudflare }}
+          SH: ${{ steps.changes.outputs.shopify }}
+        run: |
+          {
+            echo "### production"
+            echo "| | changed | outcome |"
+            echo "|---|---|---|"
+            echo "| Worker | $CF | ${{ steps.worker_deploy.outcome || 'skipped' }} |"
+            echo "| Shopify upload | $SH | ${{ steps.shopify_deploy.outcome || 'skipped' }} |"
+            echo "| Shopify release | ${{ steps.changes.outputs.both }} | ${{ steps.shopify_release.outcome || 'n/a (released on upload or skipped)' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
