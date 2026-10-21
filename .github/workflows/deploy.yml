@@ -5,9 +5,10 @@ name: Deploy
 #
 #   main -> production    the Worker in wrangler.jsonc, shopify.app.toml
 #
-# Opt-in. A push to `main` deploys only once the repository variable
-# DEPLOY_ENABLED is `true`, so a fresh copy of this template doesn't fail on
-# its first commit. A manual run (Actions -> Deploy -> Run workflow) always runs.
+# Opt-in per side: each one deploys only once its token is set, so a fresh copy
+# of this template skips both (with a notice) instead of failing on its first
+# commit. A manual run (Actions -> Deploy -> Run workflow) that asks for a side
+# without its token fails instead, and so does a side that is half set up.
 #
 # Only Cloudflare changed -> migrate D1, deploy the Worker.
 # Only Shopify changed    -> release a new app version.
@@ -44,7 +45,6 @@ name: Deploy
 #   Variables
 #     VITE_SHOPIFY_CLIENT_ID        the app's client ID (public), baked into index.html
 # On the repository (Settings -> Secrets and variables -> Actions -> Variables):
-#     DEPLOY_ENABLED                `true` to deploy on every push to main
 #     SHOPIFY_APP_CONFIG            optional, see above
 on:
   push:
@@ -76,7 +76,6 @@ env:
 jobs:
   deploy:
     name: Deploy ${{ github.ref_name }}
-    if: github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -127,6 +126,22 @@ jobs:
             echo "::notice::$CONFIG_FILE is not committed, so the Shopify app is not deployed"
             SH=false
           fi
+          # A side whose token isn't set is not set up yet: skip it, unless a manual
+          # run asked for it. Cloudflare with only one of its two secrets is half
+          # set up, so that fails in Check configuration instead.
+          skip() {
+            if [ "$EVENT" = "workflow_dispatch" ]; then
+              echo "::error::Asked to deploy $1, but $2 is not set on the 'production' environment"
+              exit 1
+            fi
+            echo "::notice::$2 is not set, so $1 is not deployed"
+          }
+          if [ "$CF" = true ] && [ -z "$CLOUDFLARE_API_TOKEN" ] && [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            skip cloudflare "CLOUDFLARE_API_TOKEN"; CF=false
+          fi
+          if [ "$SH" = true ] && [ -z "$SHOPIFY_APP_AUTOMATION_TOKEN" ]; then
+            skip shopify "SHOPIFY_APP_AUTOMATION_TOKEN"; SH=false
+          fi
           {
             echo "cloudflare=$CF"
             echo "shopify=$SH"
@@ -135,32 +150,26 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "cloudflare=$CF shopify=$SH"
 
-      # Fail before building anything if a needed secret or setting is missing.
+      # A side that is set up must be set up completely: fail before building
+      # anything if the rest of what it needs is missing.
       - name: Check configuration
-        if: steps.changes.outputs.cloudflare == 'true' || steps.changes.outputs.shopify == 'true'
+        if: steps.changes.outputs.cloudflare == 'true'
         env:
-          CF: ${{ steps.changes.outputs.cloudflare }}
-          SH: ${{ steps.changes.outputs.shopify }}
           VITE_SHOPIFY_CLIENT_ID: ${{ vars.VITE_SHOPIFY_CLIENT_ID }}
         run: |
           missing=""
-          if [ "$CF" = true ]; then
-            [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
-            [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
-            # Without it index.html ships an unsubstituted %VITE_SHOPIFY_CLIENT_ID%,
-            # App Bridge boots with the wrong api key and every /api/* call 401s.
-            [ -n "$VITE_SHOPIFY_CLIENT_ID" ] || missing="$missing VITE_SHOPIFY_CLIENT_ID(variable)"
-          fi
-          if [ "$SH" = true ]; then
-            [ -n "$SHOPIFY_APP_AUTOMATION_TOKEN" ] || missing="$missing SHOPIFY_APP_AUTOMATION_TOKEN"
-          fi
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          # Without it index.html ships an unsubstituted %VITE_SHOPIFY_CLIENT_ID%,
+          # App Bridge boots with the wrong api key and every /api/* call 401s.
+          [ -n "$VITE_SHOPIFY_CLIENT_ID" ] || missing="$missing VITE_SHOPIFY_CLIENT_ID(variable)"
           if [ -n "$missing" ]; then
             echo "::error::Missing on the 'production' environment:$missing"
             exit 1
           fi
           # The template ships placeholder binding IDs; deploying them fails late
           # and confusingly, so stop here instead.
-          if [ "$CF" = true ] && grep -Eq 'YOUR_(DATABASE|KV_NAMESPACE)_ID' wrangler.jsonc; then
+          if grep -Eq 'YOUR_(DATABASE|KV_NAMESPACE)_ID' wrangler.jsonc; then
             echo "::error file=wrangler.jsonc::Replace the YOUR_DATABASE_ID / YOUR_KV_NAMESPACE_ID placeholders with your D1 and KV IDs"
             exit 1
           fi
