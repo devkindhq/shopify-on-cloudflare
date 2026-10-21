@@ -25,6 +25,7 @@ What's wired up out of the box:
 - D1 + Drizzle with a single `shopify_shop` table to extend
 - Install / uninstall lifecycle, including `app/uninstalled` webhook
 - One example protected API route (`GET /api/example`) and one Polaris page that fetches it
+- A "Welcome, {first} {last}" greeting for the staff member who has the app open (online-token exchange, name cached in KV — the online token itself is never stored)
 
 What's commented out as opt-in (in `wrangler.jsonc`): Cloudflare Queues, Durable Objects, Cron triggers.
 

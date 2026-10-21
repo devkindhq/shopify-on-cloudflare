@@ -32,7 +32,13 @@ type ShopProfile = {
   status: 'installed' | 'uninstalled' | null;
 };
 
-type ExampleResponse = { shop: ShopProfile };
+/** The staff member who has the app open — `null` when Shopify couldn't say. */
+type CurrentUser = {
+  id: string;
+  name: string | null;
+};
+
+type ExampleResponse = { shop: ShopProfile; user: CurrentUser | null };
 
 const show = (v: string | null | undefined) => (v && v.trim() ? v : 'Not set');
 
@@ -54,6 +60,7 @@ export default function Home() {
   });
 
   const shop = data?.shop;
+  const userName = data?.user?.name;
   const storeName = show(shop?.name ?? shop?.myshopifyDomain);
 
   return (
@@ -75,6 +82,10 @@ export default function Home() {
 
             {shop && (
               <VerticalStack gap="4">
+                <Text as="h1" variant="headingLg">
+                  {userName ? `Welcome, ${userName}` : 'Welcome'}
+                </Text>
+
                 <HorizontalStack align="space-between" blockAlign="center" wrap={false}>
                   <HorizontalStack gap="3" blockAlign="center" wrap={false}>
                     <Avatar name={storeName} initials={initials(storeName)} />
