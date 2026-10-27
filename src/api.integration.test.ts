@@ -61,10 +61,13 @@ describe('GET /api/example (protected by requireShop)', () => {
     expect(res.status).toBe(200);
     const json = (await res.json()) as {
       shop: { name: string; owner: string; status: string };
+      user: unknown;
     };
     expect(json.shop.name).toBe('Test Store');
     expect(json.shop.owner).toBe('Jane Merchant');
     expect(json.shop.status).toBe('installed');
+    // No session token on the dev fallback, so there's no staff member to greet.
+    expect(json.user).toBeNull();
   });
 
   it('ignores the dev header fallback when ENVIRONMENT is not development', async () => {
