@@ -183,7 +183,8 @@ npm run deploy
 ### CI/CD (GitHub Actions)
 
 - **`ci.yml`** runs lint, tests with coverage, and build on every pull request into `main`. It only runs the jobs the change touches, and lint and tests only over the changed files. A change to dependencies, tool config or a workflow runs everything.
-- **`deploy.yml`** deploys on every push to `main`. It migrates D1 and deploys the Worker. If `shopify.app.toml` is committed, it also releases the Shopify app version. Each side deploys only once its token is set; until then it is skipped with a notice and the run stays green. When both change in one push they go out together: if the Shopify release fails, the Worker is rolled back. See the header of `deploy.yml` for the details.
+- **`deploy.yml`** deploys on every push to `main`. It migrates D1 and deploys the Worker. If `shopify.app.toml` is committed, it also releases the Shopify app version. Each side deploys only once its token is set; until then it is skipped with a notice and the run stays green. When both change in one push they go out together: if the Shopify release fails (or the run is cancelled before it finishes), the Worker is rolled back. Before deploying it runs lint and the full test suite, so a direct push to `main` can't skip them. See the header of `deploy.yml` for the details.
+- **Protect `main`.** Turn on branch protection for `main` (Settings → Branches) and require the CI checks (`Lint`, `Test & Coverage`, `Build`) to pass before merging, so a red PR can't be merged and deployed.
 
 To turn on Cloudflare deploys (Shopify is the same, with its own token):
 

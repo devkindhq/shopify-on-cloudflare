@@ -187,6 +187,15 @@ jobs:
 
       # ── 1. Build and check everything; nothing is deployed yet ───────────────
 
+      # CI runs only on pull requests, so a direct push (or an admin merge of a
+      # red PR) would otherwise reach production untested. The full suite, not
+      # just the changed files: this is the last gate before production.
+      - name: Lint and test
+        if: steps.changes.outputs.cloudflare == 'true' || steps.changes.outputs.shopify == 'true'
+        run: |
+          npm run lint:ci
+          npx vitest run
+
       - name: Build Worker
         if: steps.changes.outputs.cloudflare == 'true'
         env:
@@ -284,16 +293,18 @@ jobs:
             --allow-updates \
             --no-input
 
+      # Any outcome but success, not just failure: a run cancelled or timed out
+      # after the Worker landed leaves the Shopify version unreleased too.
       - name: Roll back Worker
-        if: failure() && steps.shopify_release.outcome == 'failure' && steps.worker_deploy.outcome == 'success'
+        if: always() && steps.changes.outputs.both == 'true' && steps.worker_deploy.outcome == 'success' && steps.shopify_release.outcome != 'success'
         env:
           PREVIOUS: ${{ steps.previous.outputs.version }}
         run: |
           if [ -z "$PREVIOUS" ]; then
-            echo "::error::Shopify release failed and the Worker has no earlier version to roll back to. The new Worker is live; fix forward or delete it."
+            echo "::error::Shopify release did not complete and the Worker has no earlier version to roll back to. The new Worker is live; fix forward or delete it."
             exit 1
           fi
-          echo "::error::Shopify release failed; rolling the Worker back to $PREVIOUS"
+          echo "::error::Shopify release did not complete; rolling the Worker back to $PREVIOUS"
           npx wrangler rollback "$PREVIOUS" \
             --message "Shopify release failed in run ${{ github.run_id }}" --yes
 

@@ -97,9 +97,12 @@ jobs:
             echo "web=$(flag '^web/')"
             echo "ts=$(flag '\.(ts|tsx|json)$')"
             echo "build=$(flag '^(web|src)/|^index\.html$')"
-            # Changed web TS files that still exist (a deleted file has nothing to lint).
-            LINT=$(echo "$CHANGED" | grep -E '^web/.*\.(ts|tsx)$' | while read -r f; do [ -f "$f" ] && printf '%s ' "$f"; done || true)
-            echo "lint_files=$LINT"
+            # Changed web TS files that still exist (a deleted file has nothing to lint),
+            # one per line so a path with a space survives.
+            LINT=$(echo "$CHANGED" | grep -E '^web/.*\.(ts|tsx)$' | while IFS= read -r f; do [ -f "$f" ] && printf '%s\n' "$f"; done || true)
+            echo "lint_files<<LINT_EOF"
+            echo "$LINT"
+            echo "LINT_EOF"
           } >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
@@ -130,7 +133,7 @@ jobs:
             npm run lint:ci
           elif [ -n "$FILES" ]; then
             # Same rules as lint:ci, on the changed web files only.
-            npx eslint --ext .ts,.tsx $FILES
+            printf '%s\n' "$FILES" | xargs -r -d '\n' npx eslint --ext .ts,.tsx
           else
             echo "No changed web TypeScript to lint."
           fi
